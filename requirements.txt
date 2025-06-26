@@ -1,0 +1,16 @@
+streamlit
+pandas
+matplotlib
+plotly
+spacy
+nltk
+requests
+beautifulsoup4
+newspaper3k
+vaderSentiment
+textblob
+transformers
+torch
+joblib
+scikit-learn
+
