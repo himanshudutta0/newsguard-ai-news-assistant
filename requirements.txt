@@ -1,16 +1,34 @@
+# --- Backend ---
+fastapi
+uvicorn
+
+# --- Frontend ---
 streamlit
+
+# --- Data & Visualization ---
 pandas
 matplotlib
 plotly
+
+# --- NLP ---
 spacy
 nltk
+textblob
+vaderSentiment
+
+# --- Web Scraping ---
 requests
 beautifulsoup4
 newspaper3k
-vaderSentiment
-textblob
+
+# --- ML / AI ---
 transformers
 torch
-joblib
 scikit-learn
+joblib
 
+# --- Utilities (recommended) ---
+python-multipart
+
+
+# make sure you run this => python -m spacy download en_core_web_sm
