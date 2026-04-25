@@ -1,685 +1,701 @@
 import streamlit as st
-import requests
+import json
 import pandas as pd
+from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
+import subprocess
+import time
 
-BASE_URL = "http://127.0.0.1:8000"
-
-def fetch(endpoint):
-    try:
-        res = requests.get(BASE_URL + endpoint)
-        if res.status_code == 200:
-            return res.json()
-        return []
-    except:
-        return []
-
-# ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="NewsGuard",
+    page_title="NewsGuard AI",
+    page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
-# ── Global CSS ────────────────────────────────────────────────────────────────
+# ── Custom CSS ────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-/* Reset & base */
-html, body, [data-testid="stAppViewContainer"] {
-    background: #0a0a0b !important;
-    color: #e8e3d9 !important;
-}
-
-[data-testid="stAppViewContainer"] {
+html, body, [class*="css"] {
     font-family: 'DM Sans', sans-serif;
 }
 
-/* Hide default Streamlit chrome */
-#MainMenu, footer, [data-testid="stToolbar"], header { display: none !important; }
-[data-testid="stSidebar"] { display: none !important; }
-[data-testid="block-container"] {
-    padding: 0 2rem 2rem !important;
-    max-width: 1400px !important;
+/* Page background */
+.stApp {
+    background: #0d0f14;
+    color: #e8e6e0;
 }
 
-/* ── Masthead ── */
-.ng-masthead {
-    border-bottom: 1px solid #2a2620;
-    padding: 2rem 0 1.2rem;
-    margin-bottom: 2.5rem;
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: #13161d !important;
+    border-right: 1px solid #1f2330;
+}
+section[data-testid="stSidebar"] .stMarkdown p,
+section[data-testid="stSidebar"] label {
+    color: #8a8fa0 !important;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* Header */
+.ng-header {
     display: flex;
     align-items: baseline;
-    gap: 1.5rem;
-}
-.ng-logo {
-    font-family: 'Playfair Display', serif;
-    font-size: 2.6rem;
-    font-weight: 700;
-    color: #e8e3d9;
-    letter-spacing: -0.02em;
-    line-height: 1;
-}
-.ng-logo span {
-    color: #c8974a;
-}
-.ng-dateline {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: #5a5550;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    margin-top: 4px;
-}
-.ng-tagline {
-    font-size: 0.8rem;
-    color: #5a5550;
-    font-weight: 300;
-    letter-spacing: 0.05em;
-    margin-left: auto;
-    font-style: italic;
-}
-
-/* ── Tab bar ── */
-.stTabs [data-baseweb="tab-list"] {
-    background: transparent !important;
-    border-bottom: 1px solid #2a2620 !important;
-    gap: 0 !important;
-    padding: 0 !important;
-}
-.stTabs [data-baseweb="tab"] {
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.7rem !important;
-    letter-spacing: 0.12em !important;
-    text-transform: uppercase !important;
-    color: #5a5550 !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0.8rem 1.4rem !important;
-    border-bottom: 2px solid transparent !important;
-    transition: all 0.2s !important;
-}
-.stTabs [aria-selected="true"] {
-    color: #c8974a !important;
-    border-bottom: 2px solid #c8974a !important;
-    background: transparent !important;
-}
-.stTabs [data-baseweb="tab"]:hover {
-    color: #e8e3d9 !important;
-    background: transparent !important;
-}
-.stTabs [data-baseweb="tab-panel"] {
-    padding: 2rem 0 0 !important;
-    background: transparent !important;
-}
-
-/* ── Search bar ── */
-[data-testid="stTextInput"] input {
-    background: #111113 !important;
-    border: 1px solid #2a2620 !important;
-    border-radius: 2px !important;
-    color: #e8e3d9 !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-size: 0.9rem !important;
-    padding: 0.6rem 1rem !important;
-    transition: border-color 0.2s !important;
-}
-[data-testid="stTextInput"] input:focus {
-    border-color: #c8974a !important;
-    box-shadow: 0 0 0 3px rgba(200, 151, 74, 0.08) !important;
-}
-[data-testid="stTextInput"] input::placeholder { color: #3a3530 !important; }
-[data-testid="stTextInput"] label {
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.65rem !important;
-    letter-spacing: 0.12em !important;
-    text-transform: uppercase !important;
-    color: #5a5550 !important;
-}
-
-/* ── Buttons ── */
-.stButton button {
-    background: transparent !important;
-    border: 1px solid #2a2620 !important;
-    border-radius: 2px !important;
-    color: #5a5550 !important;
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.65rem !important;
-    letter-spacing: 0.12em !important;
-    text-transform: uppercase !important;
-    padding: 0.5rem 1.2rem !important;
-    transition: all 0.2s !important;
-}
-.stButton button:hover {
-    border-color: #c8974a !important;
-    color: #c8974a !important;
-    background: rgba(200, 151, 74, 0.05) !important;
-}
-
-/* ── Article cards ── */
-.ng-article {
-    border-left: 3px solid #2a2620;
-    padding: 1.2rem 0 1.2rem 1.4rem;
-    margin-bottom: 1.6rem;
-    transition: border-color 0.2s;
-}
-.ng-article:hover { border-left-color: #c8974a; }
-.ng-article h3 {
-    font-family: 'Playfair Display', serif !important;
-    font-size: 1.25rem !important;
-    font-weight: 600 !important;
-    color: #e8e3d9 !important;
-    margin: 0 0 0.4rem !important;
-    line-height: 1.35 !important;
-}
-.ng-article .meta {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    color: #3a3530;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    display: flex;
-    gap: 1.2rem;
-    margin-bottom: 0.6rem;
-}
-.ng-article .url {
-    color: #c8974a;
-    font-size: 0.8rem;
-    word-break: break-all;
-}
-
-/* ── Expanders ── */
-[data-testid="stExpander"] {
-    background: #111113 !important;
-    border: 1px solid #1e1c19 !important;
-    border-radius: 2px !important;
-}
-[data-testid="stExpander"] summary {
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.65rem !important;
-    letter-spacing: 0.12em !important;
-    text-transform: uppercase !important;
-    color: #3a3530 !important;
-}
-[data-testid="stExpanderDetails"] {
-    font-size: 0.9rem !important;
-    color: #9a9590 !important;
-    line-height: 1.7 !important;
-}
-
-/* ── Metrics ── */
-[data-testid="stMetric"] {
-    background: #111113 !important;
-    border: 1px solid #1e1c19 !important;
-    border-radius: 2px !important;
-    padding: 1rem 1.2rem !important;
-}
-[data-testid="stMetricLabel"] {
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.6rem !important;
-    letter-spacing: 0.12em !important;
-    text-transform: uppercase !important;
-    color: #3a3530 !important;
-}
-[data-testid="stMetricValue"] {
-    font-family: 'Playfair Display', serif !important;
-    font-size: 1.6rem !important;
-    color: #e8e3d9 !important;
-}
-
-/* ── Progress bars ── */
-[data-testid="stProgress"] > div {
-    background: #1e1c19 !important;
-    border-radius: 0 !important;
-    height: 3px !important;
-}
-[data-testid="stProgress"] > div > div {
-    background: #c8974a !important;
-    border-radius: 0 !important;
-}
-
-/* ── Section headers ── */
-.ng-section-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.6rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: #3a3530;
-    border-bottom: 1px solid #1e1c19;
-    padding-bottom: 0.5rem;
+    gap: 14px;
+    padding: 2rem 0 0.5rem;
+    border-bottom: 1px solid #1f2330;
     margin-bottom: 1.5rem;
 }
-
-/* ── Data frames ── */
-[data-testid="stDataFrame"] {
-    background: #111113 !important;
-    border: 1px solid #1e1c19 !important;
+.ng-logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2rem;
+    color: #e8e6e0;
+    line-height: 1;
 }
-
-/* ── Info/success boxes ── */
-[data-testid="stAlert"] {
-    background: #111113 !important;
-    border-left: 3px solid #c8974a !important;
-    color: #9a9590 !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-size: 0.85rem !important;
-    border-radius: 0 !important;
-}
-
-/* ── Date input ── */
-[data-testid="stDateInput"] input {
-    background: #111113 !important;
-    border: 1px solid #2a2620 !important;
-    color: #e8e3d9 !important;
-    border-radius: 2px !important;
-    font-family: 'DM Sans', sans-serif !important;
-}
-[data-testid="stDateInput"] label {
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.65rem !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.1em !important;
-    color: #5a5550 !important;
-}
-
-/* ── Sentiment article blocks ── */
-.ng-sentiment-card {
-    background: #111113;
-    border: 1px solid #1e1c19;
-    border-radius: 2px;
-    padding: 1.4rem;
-    margin-bottom: 1.2rem;
-}
-.ng-sentiment-card h4 {
-    font-family: 'Playfair Display', serif;
-    font-size: 1.05rem;
-    font-weight: 600;
-    color: #e8e3d9;
-    margin: 0 0 1rem;
-}
-.ng-stat-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.6rem;
+.ng-logo span { color: #4f8fff; }
+.ng-tagline {
+    font-size: 12px;
+    color: #4a4f60;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: #3a3530;
-    margin-bottom: 0.25rem;
 }
-.ng-stat-value {
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    background: transparent;
+    border-bottom: 1px solid #1f2330;
+    gap: 0;
+}
+.stTabs [data-baseweb="tab"] {
     font-family: 'DM Sans', sans-serif;
-    font-size: 1.1rem;
+    font-size: 13px;
     font-weight: 500;
-    color: #e8e3d9;
+    color: #4a4f60;
+    padding: 10px 20px;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    letter-spacing: 0.02em;
 }
-.ng-bias-label {
+.stTabs [aria-selected="true"] {
+    color: #4f8fff !important;
+    border-bottom: 2px solid #4f8fff !important;
+    background: transparent !important;
+}
+.stTabs [data-baseweb="tab"]:hover { color: #a0a8c0 !important; }
+.stTabs [data-baseweb="tab-panel"] { padding-top: 1.5rem; }
+
+/* Article cards */
+.ng-card {
+    background: #13161d;
+    border: 1px solid #1f2330;
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    transition: border-color 0.2s;
+}
+.ng-card:hover { border-color: #2d3250; }
+.ng-card-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.1rem;
+    color: #e8e6e0;
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+.ng-card-meta {
+    font-size: 12px;
+    color: #4a4f60;
+    letter-spacing: 0.04em;
+    margin-bottom: 10px;
+}
+.ng-card-meta a { color: #4f8fff; text-decoration: none; }
+.ng-card-meta a:hover { text-decoration: underline; }
+.ng-tag {
     display: inline-block;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.6rem;
+    background: #1a1f2e;
+    border: 1px solid #2a3050;
+    color: #7a90c0;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 4px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-right: 6px;
+}
+.ng-tag-blue { border-color: #1a3a6e; color: #4f8fff; background: #0d1a30; }
+.ng-tag-green { border-color: #1a3a2e; color: #3fcf8e; background: #0d201a; }
+.ng-tag-amber { border-color: #3a2a0d; color: #c09020; background: #1e1808; }
+.ng-tag-red { border-color: #3a1010; color: #e05050; background: #1e0a0a; }
+
+/* Metric row */
+.ng-metrics {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+.ng-metric {
+    flex: 1;
+    min-width: 120px;
+    background: #13161d;
+    border: 1px solid #1f2330;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+}
+.ng-metric-label {
+    font-size: 11px;
+    color: #4a4f60;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    padding: 0.2rem 0.6rem;
-    border-radius: 1px;
-    background: rgba(200, 151, 74, 0.12);
-    color: #c8974a;
-    border: 1px solid rgba(200, 151, 74, 0.3);
+    margin-bottom: 6px;
 }
-.ng-divider {
-    border: none;
-    border-top: 1px solid #1e1c19;
-    margin: 0.8rem 0;
+.ng-metric-value {
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: #e8e6e0;
+    line-height: 1;
+}
+.ng-metric-sub {
+    font-size: 11px;
+    color: #3fcf8e;
+    margin-top: 4px;
 }
 
-/* ── Topic chips ── */
-.ng-topic-chip {
+/* Expanders */
+details summary {
+    font-size: 12px;
+    color: #4a4f60;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    margin-top: 8px;
+}
+details summary:hover { color: #8a8fa0; }
+
+/* Search bar */
+.stTextInput > div > div > input {
+    background: #13161d !important;
+    border: 1px solid #1f2330 !important;
+    border-radius: 8px !important;
+    color: #e8e6e0 !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 14px !important;
+    padding: 10px 14px !important;
+}
+.stTextInput > div > div > input:focus {
+    border-color: #4f8fff !important;
+    box-shadow: 0 0 0 1px #4f8fff20 !important;
+}
+
+/* Buttons */
+.stButton > button {
+    background: #1a1f2e !important;
+    border: 1px solid #2d3250 !important;
+    color: #7a90c0 !important;
+    border-radius: 8px !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    padding: 8px 16px !important;
+    transition: all 0.15s !important;
+}
+.stButton > button:hover {
+    border-color: #4f8fff !important;
+    color: #4f8fff !important;
+    background: #0d1a30 !important;
+}
+
+/* Selectbox & multiselect */
+.stSelectbox > div > div,
+.stMultiSelect > div > div {
+    background: #13161d !important;
+    border: 1px solid #1f2330 !important;
+    border-radius: 8px !important;
+    color: #e8e6e0 !important;
+}
+
+/* Section headers */
+.ng-section-header {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.4rem;
+    color: #e8e6e0;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #1f2330;
+}
+
+/* Entity pill */
+.ng-entity {
     display: inline-block;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 0.25rem 0.7rem;
-    background: rgba(200, 151, 74, 0.08);
-    border: 1px solid rgba(200, 151, 74, 0.2);
-    color: #c8974a;
-    border-radius: 1px;
-    margin-right: 0.4rem;
+    margin: 3px 4px 3px 0;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
 }
 
-/* ── Plotly charts ── */
-.js-plotly-plot .plotly .bg {
-    fill: transparent !important;
+/* Divider */
+.ng-divider { border: none; border-top: 1px solid #1f2330; margin: 1rem 0; }
+
+/* Sentiment progress */
+.ng-progress-wrap {
+    background: #1a1f2e;
+    border-radius: 4px;
+    height: 6px;
+    margin-top: 4px;
+}
+.ng-progress-fill {
+    height: 6px;
+    border-radius: 4px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0d0f14; }
+::-webkit-scrollbar-thumb { background: #1f2330; border-radius: 3px; }
+
+/* Info/warning boxes */
+.ng-info {
+    background: #0d1a30;
+    border: 1px solid #1a3a6e;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    color: #7a90c0;
+    font-size: 13px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Masthead ─────────────────────────────────────────────────────────────────
-now = datetime.now()
-st.markdown(f"""
-<div class="ng-masthead">
-    <div>
-        <div class="ng-logo">News<span>Guard</span></div>
-        <div class="ng-dateline">{now.strftime('%A, %B %d, %Y — %H:%M')}</div>
+# ── Data Loading ──────────────────────────────────────────────────────────────
+@st.cache_data(ttl=60 * 60)
+def load_json(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def auto_refresh(last_refresh_time):
+    diff = time.time() - last_refresh_time
+    if diff >= 300:
+        return True, time.time()
+    return False, last_refresh_time
+
+if 'last_refresh_time' not in st.session_state:
+    st.session_state['last_refresh_time'] = time.time()
+
+refresh_needed, st.session_state['last_refresh_time'] = auto_refresh(
+    st.session_state['last_refresh_time']
+)
+
+def load_all():
+    return {
+        "scraped": load_json("data/scrapped.json"),
+        "preprocessed": load_json("data/preprocessed.json"),
+        "entities": load_json("data/entities.json"),
+        "predicted": load_json("data/topic_predicted.json"),
+        "summarized": load_json("data/summarized.json"),
+        "topic_modeled": load_json("data/topic_modeled.json"),
+        "sentiment_bias": load_json("data/sentiment_bias.json"),
+    }
+
+# ── Sidebar ───────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("""
+    <div style='padding: 1.5rem 0 1rem;'>
+        <div style='font-family: DM Serif Display, serif; font-size: 1.3rem; color: #e8e6e0;'>
+            News<span style='color:#4f8fff'>Guard</span>
+        </div>
+        <div style='font-size: 11px; color: #3a3f50; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px;'>
+            AI Intelligence Platform
+        </div>
     </div>
-    <div class="ng-tagline">Intelligence pipeline for the discerning reader</div>
+    <hr style='border: none; border-top: 1px solid #1f2330; margin-bottom: 1.25rem;'>
+    """, unsafe_allow_html=True)
+
+    if st.button("↻  Refresh Data", use_container_width=True):
+        with st.spinner("Fetching latest articles..."):
+            result = subprocess.run(["python", "main.py"], capture_output=True, text=True)
+        load_json.clear()
+        st.success("Data refreshed!")
+
+    st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
+    st.markdown("**NAVIGATION**")
+    global_query = st.text_input("", placeholder="Search all articles…", label_visibility="collapsed")
+
+    st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
+    st.markdown("**LAST UPDATED**")
+    st.markdown(f"<div style='font-size:13px;color:#4a4f60'>{datetime.now().strftime('%b %d, %Y · %H:%M')}</div>",
+                unsafe_allow_html=True)
+
+data = load_all()
+
+# ── Match helper ──────────────────────────────────────────────────────────────
+def match(article, keys):
+    if not global_query:
+        return True
+    q = global_query.lower()
+    return any(q in str(article.get(k, "")).lower() for k in keys)
+
+def plotly_theme():
+    return dict(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="DM Sans", color="#8a8fa0", size=12),
+        margin=dict(l=0, r=0, t=30, b=0),
+    )
+
+# ── Header ────────────────────────────────────────────────────────────────────
+st.markdown("""
+<div class='ng-header'>
+    <div class='ng-logo'>News<span>Guard</span></div>
+    <div class='ng-tagline'>AI-Powered Multilingual Intelligence</div>
 </div>
 """, unsafe_allow_html=True)
 
-# ── Control bar ──────────────────────────────────────────────────────────────
-col_search, col_btn = st.columns([5, 1])
-with col_search:
-    query = st.text_input("Search articles", placeholder="Keywords, entities, topics…", label_visibility="collapsed")
-with col_btn:
-    if st.button("↺  Refresh"):
-        try:
-            requests.get(BASE_URL + "/refresh")
-            st.success("Pipeline executed")
-        except:
-            st.error("Could not reach backend")
+# ── Metric Strip ──────────────────────────────────────────────────────────────
+s = data["scraped"]
+sb = data["sentiment_bias"]
+topics = [a.get("predicted_topic", "") for a in data["predicted"]]
+unique_topics = len(set(topics)) if topics else 0
 
-st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
+pos_count = sum(1 for a in sb if a.get("sentiment_vader", {}).get("compound", 0) > 0.05)
+neg_count = sum(1 for a in sb if a.get("sentiment_vader", {}).get("compound", 0) < -0.05)
 
-# ── Plotly theme ──────────────────────────────────────────────────────────────
-PLOTLY_LAYOUT = dict(
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="DM Sans, sans-serif", color="#5a5550", size=11),
-    xaxis=dict(gridcolor="#1e1c19", linecolor="#2a2620", tickcolor="#2a2620"),
-    yaxis=dict(gridcolor="#1e1c19", linecolor="#2a2620", tickcolor="#2a2620"),
-    margin=dict(l=0, r=0, t=20, b=0),
-    colorway=["#c8974a", "#8b6a35", "#e8b87a", "#5a3d1e", "#f0d4a8"],
-)
+st.markdown(f"""
+<div class='ng-metrics'>
+    <div class='ng-metric'>
+        <div class='ng-metric-label'>Articles Scraped</div>
+        <div class='ng-metric-value'>{len(s)}</div>
+        <div class='ng-metric-sub'>Today</div>
+    </div>
+    <div class='ng-metric'>
+        <div class='ng-metric-label'>Topics Detected</div>
+        <div class='ng-metric-value'>{unique_topics}</div>
+    </div>
+    <div class='ng-metric'>
+        <div class='ng-metric-label'>Positive Tone</div>
+        <div class='ng-metric-value'>{pos_count}</div>
+        <div class='ng-metric-sub' style='color:#3fcf8e'>Articles</div>
+    </div>
+    <div class='ng-metric'>
+        <div class='ng-metric-label'>Negative Tone</div>
+        <div class='ng-metric-value'>{neg_count}</div>
+        <div class='ng-metric-sub' style='color:#e05050'>Articles</div>
+    </div>
+    <div class='ng-metric'>
+        <div class='ng-metric-label'>Summarized</div>
+        <div class='ng-metric-value'>{len(data["summarized"])}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-# ── Tabs ─────────────────────────────────────────────────────────────────────
+# ── Tabs ──────────────────────────────────────────────────────────────────────
 tabs = st.tabs([
     "Scraped", "Preprocessed", "Entities",
-    "Topics", "Summaries", "Modeling",
+    "Topics", "Summaries", "Topic Model",
     "Daily Digest", "Sentiment & Bias"
 ])
 
-# ════════════════ SCRAPED ════════════════
+# ─── Tab 1: Scraped ────────────────────────────────────────────────────────
 with tabs[0]:
-    st.markdown('<div class="ng-section-label">Raw feed — scraped articles</div>', unsafe_allow_html=True)
-    data = fetch("/search?q=" + query) if query else fetch("/articles/scraped")
-    if not data:
-        st.info("No articles available.")
-    for a in data:
-        pub = a.get("published_at", "")
-        try:
-            pub = datetime.fromisoformat(pub).strftime("%b %d, %Y · %H:%M")
-        except:
-            pass
+    st.markdown("<div class='ng-section-header'>Scraped Articles</div>", unsafe_allow_html=True)
+    articles = [a for a in data["scraped"] if match(a, ['title', 'content'])]
+    st.markdown(f"<div style='font-size:12px;color:#4a4f60;margin-bottom:1rem'>{len(articles)} articles found</div>",
+                unsafe_allow_html=True)
+    for a in articles:
+        date_str = a.get('published_at', 'Unknown date')
         st.markdown(f"""
-        <div class="ng-article">
-            <h3>{a.get("title", "Untitled")}</h3>
-            <div class="meta">
-                <span>{pub}</span>
+        <div class='ng-card'>
+            <div class='ng-card-title'>{a.get('title','Untitled')}</div>
+            <div class='ng-card-meta'>
+                📅 {date_str} &nbsp;·&nbsp; 🔗 <a href='{a.get('url','')}' target='_blank'>{a.get('url','')[:60]}…</a>
             </div>
-            <div class="url">{a.get("url", "")}</div>
         </div>
         """, unsafe_allow_html=True)
-        content = a.get("content", "")
-        if content:
-            with st.expander("Read content"):
-                st.write(content)
+        with st.expander("Read content"):
+            st.write(a.get('content', ''))
 
-# ════════════════ PREPROCESSED ════════════════
+# ─── Tab 2: Preprocessed ──────────────────────────────────────────────────
 with tabs[1]:
-    st.markdown('<div class="ng-section-label">NLP pipeline — preprocessed text</div>', unsafe_allow_html=True)
-    data = fetch("/articles/preprocessed")
-    if not data:
-        st.info("No preprocessed articles.")
-    for a in data:
+    st.markdown("<div class='ng-section-header'>Preprocessed Content</div>", unsafe_allow_html=True)
+    articles = [a for a in data["preprocessed"] if match(a, ['title', 'processed_content'])]
+    for a in articles:
         st.markdown(f"""
-        <div class="ng-article">
-            <h3>{a.get("title", "Untitled")}</h3>
+        <div class='ng-card'>
+            <div class='ng-card-title'>{a.get('title','Untitled')}</div>
+            <div class='ng-card-meta'>🔗 <a href='{a.get('url','')}' target='_blank'>{a.get('url','')[:70]}</a></div>
         </div>
         """, unsafe_allow_html=True)
         with st.expander("Processed content"):
-            st.write(a.get("processed_content", ""))
+            st.write(a.get('processed_content', ''))
 
-# ════════════════ ENTITIES ════════════════
+# ─── Tab 3: Entities ──────────────────────────────────────────────────────
 with tabs[2]:
-    st.markdown('<div class="ng-section-label">Named entity recognition</div>', unsafe_allow_html=True)
-    data = fetch("/entities")
+    st.markdown("<div class='ng-section-header'>Named Entity Recognition</div>", unsafe_allow_html=True)
 
-    if "counts" in data:
-        df = pd.DataFrame(data["counts"])
-        if not df.empty:
-            col_t, col_c = st.columns([1, 2])
-            with col_t:
-                st.dataframe(
-                    df.style.set_properties(**{
-                        "background-color": "#111113",
-                        "color": "#9a9590",
-                        "border-color": "#1e1c19",
-                        "font-family": "JetBrains Mono, monospace",
-                        "font-size": "12px",
-                    }),
-                    use_container_width=True,
-                    hide_index=True,
-                )
-            with col_c:
-                fig = px.bar(
-                    df, x="label", y="count",
-                    title="",
-                )
-                fig.update_traces(marker_color="#c8974a", marker_line_width=0)
-                fig.update_layout(**PLOTLY_LAYOUT)
-                st.plotly_chart(fig, use_container_width=True)
+    all_entities = []
+    for article in data["entities"]:
+        for label, entities in article.items():
+            if label not in ["title", "url"]:
+                for entity in (entities or []):
+                    all_entities.append({"title": article.get("title",""), "entity": entity, "label": label})
+
+    if all_entities:
+        df_e = pd.DataFrame(all_entities)
+
+        col_filter, col_chart = st.columns([1, 2])
+        with col_filter:
+            label_opts = ["All"] + sorted(df_e['label'].unique().tolist())
+            chosen_label = st.selectbox("Filter by type", label_opts)
+
+        filtered_df = df_e if chosen_label == "All" else df_e[df_e['label'] == chosen_label]
+
+        counts = filtered_df['label'].value_counts().reset_index()
+        counts.columns = ['Entity Type', 'Count']
+
+        with col_chart:
+            fig = go.Figure(go.Bar(
+                x=counts['Entity Type'], y=counts['Count'],
+                marker_color='#4f8fff',
+                marker_line_width=0,
+            ))
+            fig.update_layout(**plotly_theme(), height=200)
+            fig.update_xaxes(showgrid=False, tickfont=dict(size=11))
+            fig.update_yaxes(showgrid=True, gridcolor='#1f2330')
+            st.plotly_chart(fig, use_container_width=True)
+
+        ENTITY_COLORS = {
+            "PERSON": "ng-tag-blue", "ORG": "ng-tag-green",
+            "GPE": "ng-tag-amber", "DATE": "ng-tag",
+            "LOC": "ng-tag-amber", "MONEY": "ng-tag-green",
+        }
+
+        for title in filtered_df['title'].unique():
+            st.markdown(f"<div class='ng-card'><div class='ng-card-title'>{title}</div>", unsafe_allow_html=True)
+            rows = filtered_df[filtered_df['title'] == title]
+            pills = "".join(
+                f"<span class='ng-entity ng-tag {ENTITY_COLORS.get(r[\"label\"], \"ng-tag\")}'>{r['entity']} <span style='opacity:0.5;font-size:10px'>{r['label']}</span></span>"
+                for _, r in rows.iterrows()
+            )
+            st.markdown(f"{pills}</div>", unsafe_allow_html=True)
     else:
-        st.info("No entity data.")
+        st.markdown("<div class='ng-info'>No entity data available.</div>", unsafe_allow_html=True)
 
-# ════════════════ TOPICS ════════════════
+# ─── Tab 4: Predicted Topics ──────────────────────────────────────────────
 with tabs[3]:
-    st.markdown('<div class="ng-section-label">Topic classification</div>', unsafe_allow_html=True)
-    data = fetch("/topics/predicted")
-    if not data:
-        st.info("No topic predictions.")
-    for a in data:
-        topic = a.get("predicted_topic", "Unknown")
-        st.markdown(f"""
-        <div class="ng-article">
-            <div class="meta"><span>Predicted topic</span></div>
-            <h3>{a.get("title", "Untitled")}</h3>
-            <span class="ng-topic-chip">{topic}</span>
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown("<div class='ng-section-header'>Predicted Topics</div>", unsafe_allow_html=True)
 
-# ════════════════ SUMMARIES ════════════════
-with tabs[4]:
-    st.markdown('<div class="ng-section-label">AI-generated summaries</div>', unsafe_allow_html=True)
-    data = fetch("/summaries")
-    if not data:
-        st.info("No summaries available.")
-    for a in data:
-        st.markdown(f"""
-        <div class="ng-article">
-            <h3>{a.get("title", "Untitled")}</h3>
-        </div>
-        """, unsafe_allow_html=True)
-        with st.expander("Read summary"):
-            st.write(a.get("summary", ""))
+    all_topics = sorted({a.get('predicted_topic','') for a in data["predicted"] if a.get('predicted_topic')})
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        topic_filter = st.multiselect("Filter topics", all_topics, placeholder="All topics")
 
-# ════════════════ MODELING ════════════════
-with tabs[5]:
-    st.markdown('<div class="ng-section-label">Topic modeling — unsupervised</div>', unsafe_allow_html=True)
-    raw = fetch("/topics/modeled")
-    df = pd.DataFrame(raw)
-    if not df.empty and "topic_keywords" in df.columns:
-        fig = px.histogram(df, x="topic_keywords", title="")
-        fig.update_traces(marker_color="#c8974a", marker_line_width=0)
-        fig.update_layout(**PLOTLY_LAYOUT)
+    filtered = [
+        a for a in data["predicted"]
+        if (not topic_filter or a.get("predicted_topic") in topic_filter)
+        and match(a, ['title'])
+    ]
+
+    if all_topics and data["predicted"]:
+        topic_counts = pd.Series([a.get('predicted_topic','') for a in data["predicted"]]).value_counts()
+        fig = go.Figure(go.Bar(
+            x=topic_counts.index.tolist(),
+            y=topic_counts.values.tolist(),
+            marker_color='#3fcf8e',
+            marker_line_width=0,
+        ))
+        fig.update_layout(**plotly_theme(), height=180)
+        fig.update_xaxes(showgrid=False, tickangle=-20, tickfont=dict(size=11))
+        fig.update_yaxes(showgrid=True, gridcolor='#1f2330')
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No modeling data.")
 
-# ════════════════ DAILY DIGEST ════════════════
-with tabs[6]:
-    st.markdown('<div class="ng-section-label">Daily digest — curated briefing</div>', unsafe_allow_html=True)
-    data = fetch("/digest/today")
-    if not data:
-        st.info("No articles in today's digest.")
-    for i, a in enumerate(data):
-        num = str(i + 1).zfill(2)
-        pub = a.get("date", "")
+    for a in filtered:
         st.markdown(f"""
-        <div class="ng-article">
-            <div class="meta">
-                <span>#{num}</span>
-                <span>{pub}</span>
+        <div class='ng-card'>
+            <div class='ng-card-title'>{a.get('title','Untitled')}</div>
+            <div class='ng-card-meta' style='margin-bottom:8px'>
+                🔗 <a href='{a.get('url','')}' target='_blank'>{a.get('url','')[:60]}</a>
             </div>
-            <h3>{a.get("title", "Untitled")}</h3>
-            <div class="url">{a.get("url", "")}</div>
+            <span class='ng-tag ng-tag-blue'>{a.get('predicted_topic','—')}</span>
         </div>
         """, unsafe_allow_html=True)
-        summary = a.get("summary", "")
-        if summary:
-            with st.expander("Read summary"):
-                st.write(summary)
+        with st.expander("Processed content"):
+            st.write(a.get('processed_content', ''))
 
-# ════════════════ SENTIMENT & BIAS ════════════════
-with tabs[7]:
-    st.markdown('<div class="ng-section-label">Sentiment analysis & media bias detection</div>', unsafe_allow_html=True)
+# ─── Tab 5: Summarized ────────────────────────────────────────────────────
+with tabs[4]:
+    st.markdown("<div class='ng-section-header'>Article Summaries</div>", unsafe_allow_html=True)
+    articles = [a for a in data["summarized"] if match(a, ['title', 'summary'])]
+    for a in articles:
+        st.markdown(f"""
+        <div class='ng-card'>
+            <div class='ng-card-title'>{a.get('title','Untitled')}</div>
+            <div class='ng-card-meta'>📅 {a.get('date','Unknown')} &nbsp;·&nbsp;
+            🔗 <a href='{a.get('url','')}' target='_blank'>{a.get('url','')[:55]}…</a></div>
+            <div style='font-size:14px;color:#c0c4d0;line-height:1.65;margin-top:6px'>
+                {a.get('summary','')}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        with st.expander("Original content"):
+            st.write(a.get('content', ''))
 
-    date = st.date_input("Filter by publication date", value=None)
-    st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
+# ─── Tab 6: Topic Modeling ────────────────────────────────────────────────
+with tabs[5]:
+    st.markdown("<div class='ng-section-header'>Topic Modeling Timeline</div>", unsafe_allow_html=True)
+    tm_data = data["topic_modeled"]
 
-    data = fetch(f"/sentiment/filter?date={date}") if date else fetch("/sentiment")
-    df = pd.DataFrame(data)
+    col1, col2 = st.columns(2)
+    with col1:
+        kw_opts = ["All"] + sorted({str(a.get('topic_keywords','')) for a in tm_data})
+        selected_kw = st.selectbox("Topic keywords", kw_opts)
+    with col2:
+        date_f = st.date_input("Filter by date", value=None)
 
-    if df.empty:
-        st.info("No sentiment data.")
-    else:
-        # Aggregate chart
-        if "sentiment_textblob" in df.columns:
-            try:
-                df["polarity"] = df["sentiment_textblob"].apply(
-                    lambda x: x.get("polarity", 0) if isinstance(x, dict) else 0
-                )
-                df["subjectivity"] = df["sentiment_textblob"].apply(
-                    lambda x: x.get("subjectivity", 0) if isinstance(x, dict) else 0
-                )
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=df.get("title", df.index),
-                    y=df["polarity"],
-                    mode="lines+markers",
-                    name="Polarity",
-                    line=dict(color="#c8974a", width=1.5),
-                    marker=dict(size=5, color="#c8974a"),
-                ))
-                fig.add_trace(go.Scatter(
-                    x=df.get("title", df.index),
-                    y=df["subjectivity"],
-                    mode="lines+markers",
-                    name="Subjectivity",
-                    line=dict(color="#5a3d1e", width=1.5, dash="dot"),
-                    marker=dict(size=5, color="#5a3d1e"),
-                ))
-                fig.update_layout(
-                    **PLOTLY_LAYOUT,
-                    legend=dict(
-                        font=dict(family="JetBrains Mono", size=10, color="#5a5550"),
-                        bgcolor="rgba(0,0,0,0)",
-                        x=0, y=1,
-                    ),
-                    height=220,
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            except:
-                pass
+    filtered_tm = [
+        a for a in tm_data
+        if (selected_kw == "All" or str(a.get("topic_keywords","")) == selected_kw)
+        and (not date_f or str(a.get("date","")).startswith(str(date_f)))
+        and match(a, ['title','processed_content'])
+    ]
 
-        st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
+    if tm_data:
+        df_tm = pd.DataFrame(tm_data)
+        kw_counts = df_tm['topic_keywords'].astype(str).value_counts().head(12)
+        fig = go.Figure(go.Bar(
+            x=kw_counts.values.tolist(), y=kw_counts.index.tolist(),
+            orientation='h',
+            marker_color='#c09020',
+            marker_line_width=0,
+        ))
+        fig.update_layout(**plotly_theme(), height=300)
+        fig.update_xaxes(showgrid=True, gridcolor='#1f2330')
+        fig.update_yaxes(showgrid=False, tickfont=dict(size=11))
+        st.plotly_chart(fig, use_container_width=True)
 
-        # Per-article cards
-        for _, row in df.iterrows():
-            vader = row.get("sentiment_vader") or {}
-            tb = row.get("sentiment_textblob") or {}
-            bias = row.get("bias") or {}
+    for a in filtered_tm:
+        st.markdown(f"""
+        <div class='ng-card'>
+            <div class='ng-card-title'>{a.get('title','Untitled')}</div>
+            <div class='ng-card-meta'>📅 {a.get('date','Unknown')} &nbsp;·&nbsp;
+            🔗 <a href='{a.get('url','')}' target='_blank'>{a.get('url','')[:55]}…</a></div>
+            <span class='ng-tag ng-tag-amber'>{str(a.get('topic_keywords',''))[:60]}</span>
+        </div>
+        """, unsafe_allow_html=True)
+        with st.expander("Processed content"):
+            st.write(a.get('processed_content',''))
 
-            comp = vader.get("compound", 0)
-            polarity = round(float(tb.get("polarity", 0)), 3)
-            subjectivity = round(float(tb.get("subjectivity", 0)), 3)
-            bias_label = bias.get("label", "—")
-            bias_conf = float(bias.get("confidence", 0))
+# ─── Tab 7: Daily Digest ──────────────────────────────────────────────────
+with tabs[6]:
+    st.markdown("<div class='ng-section-header'>Daily Digest</div>", unsafe_allow_html=True)
+    today = datetime.now().strftime("%Y-%m-%d")
+    today_articles = [a for a in data["summarized"] if a.get("date","").startswith(today)]
 
-            # Sentiment direction
-            if comp > 0.05:
-                sent_icon, sent_color = "↑ Positive", "#4a8c5c"
-            elif comp < -0.05:
-                sent_icon, sent_color = "↓ Negative", "#8c4a4a"
-            else:
-                sent_icon, sent_color = "→ Neutral", "#5a5550"
-
+    if today_articles:
+        st.markdown(f"""
+        <div style='font-size:12px;color:#4a4f60;margin-bottom:1.5rem'>
+            {datetime.now().strftime("%A, %B %d, %Y")} · {len(today_articles)} articles
+        </div>
+        """, unsafe_allow_html=True)
+        for i, a in enumerate(today_articles, 1):
             st.markdown(f"""
-            <div class="ng-sentiment-card">
-                <h4>{row.get("title", "Untitled")}</h4>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.2rem;margin-bottom:1rem">
+            <div class='ng-card'>
+                <div style='display:flex;align-items:baseline;gap:10px'>
+                    <span style='font-family:DM Serif Display,serif;font-size:1.5rem;color:#2a3050'>{i:02d}</span>
                     <div>
-                        <div class="ng-stat-label">VADER compound</div>
-                        <div class="ng-stat-value" style="color:{sent_color}">{sent_icon} ({round(comp,3)})</div>
+                        <div class='ng-card-title'>{a.get('title','Untitled')}</div>
+                        <div class='ng-card-meta'>🔗 <a href='{a.get('url','')}' target='_blank'>{a.get('url','')[:60]}</a></div>
+                        <div style='font-size:14px;color:#c0c4d0;line-height:1.65;margin-top:6px'>{a.get('summary','')}</div>
                     </div>
-                    <div>
-                        <div class="ng-stat-label">Polarity</div>
-                        <div class="ng-stat-value">{polarity}</div>
-                    </div>
-                    <div>
-                        <div class="ng-stat-label">Subjectivity</div>
-                        <div class="ng-stat-value">{subjectivity}</div>
-                    </div>
-                </div>
-                <hr class="ng-divider">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0.7rem">
-                    <div>
-                        <div class="ng-stat-label" style="margin-bottom:0.3rem">Media bias</div>
-                        <span class="ng-bias-label">{bias_label}</span>
-                    </div>
-                    <div style="text-align:right">
-                        <div class="ng-stat-label" style="margin-bottom:0.3rem">Confidence</div>
-                        <div class="ng-stat-value">{round(bias_conf * 100)}%</div>
-                    </div>
-                </div>
-                <div style="margin-top:0.5rem;background:#1e1c19;height:3px;border-radius:0;">
-                    <div style="width:{round(bias_conf * 100)}%;height:3px;background:#c8974a;border-radius:0;"></div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
+    else:
+        st.markdown("<div class='ng-info'>No articles found for today. Run a refresh to fetch the latest.</div>",
+                    unsafe_allow_html=True)
 
-        # VADER breakdown chart
-        try:
-            vader_rows = []
-            for _, row in df.iterrows():
-                v = row.get("sentiment_vader") or {}
-                vader_rows.append({
-                    "title": str(row.get("title", ""))[:40] + "…",
-                    "Positive": v.get("positive", 0),
-                    "Neutral": v.get("neutral", 0),
-                    "Negative": v.get("negative", 0),
-                })
-            vdf = pd.DataFrame(vader_rows)
-            if not vdf.empty:
-                st.markdown('<div class="ng-section-label" style="margin-top:2rem">VADER breakdown by article</div>', unsafe_allow_html=True)
-                fig2 = go.Figure()
-                for col, color in [("Positive","#4a8c5c"),("Neutral","#3a3530"),("Negative","#8c4a4a")]:
-                    fig2.add_trace(go.Bar(
-                        name=col,
-                        x=vdf["title"],
-                        y=vdf[col],
-                        marker_color=color,
-                        marker_line_width=0,
-                    ))
-                fig2.update_layout(
-                    **PLOTLY_LAYOUT,
-                    barmode="stack",
-                    height=280,
-                    legend=dict(
-                        font=dict(family="JetBrains Mono", size=10, color="#5a5550"),
-                        bgcolor="rgba(0,0,0,0)",
-                        orientation="h", x=0, y=1.05,
-                    ),
-                )
-                st.plotly_chart(fig2, use_container_width=True)
-        except:
-            pass
+# ─── Tab 8: Sentiment & Bias ──────────────────────────────────────────────
+with tabs[7]:
+    st.markdown("<div class='ng-section-header'>Sentiment & Bias Analysis</div>", unsafe_allow_html=True)
+    sb_data = data["sentiment_bias"]
+
+    if sb_data:
+        df_sb = pd.DataFrame(sb_data)
+        df_sb['_date'] = pd.to_datetime(df_sb['date'].replace("Unknown", "1970-01-01"), errors='coerce')
+
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            date_sb = st.date_input("Filter by date", value=None, key="sb_date")
+        if date_sb:
+            df_sb = df_sb[df_sb['_date'].dt.date == date_sb]
+
+        # Aggregate charts
+        if len(df_sb) > 0:
+            compounds = [a.get('sentiment_vader', {}).get('compound', 0) for a in sb_data]
+            labels = [a.get('title','')[:35]+'…' for a in sb_data]
+            colors = ['#3fcf8e' if c > 0.05 else '#e05050' if c < -0.05 else '#4a4f60' for c in compounds]
+
+            fig = go.Figure(go.Bar(
+                x=labels, y=compounds,
+                marker_color=colors,
+                marker_line_width=0,
+            ))
+            fig.update_layout(**plotly_theme(), height=220)
+            fig.update_xaxes(showgrid=False, tickangle=-30, tickfont=dict(size=10))
+            fig.update_yaxes(showgrid=True, gridcolor='#1f2330', zeroline=True, zerolinecolor='#2d3250')
+            st.plotly_chart(fig, use_container_width=True)
+
+        for _, row in df_sb.iterrows():
+            if global_query and global_query.lower() not in str(row.get('title','')).lower():
+                continue
+
+            vader = row.get('sentiment_vader', {})
+            textblob = row.get('sentiment_textblob', {})
+            bias = row.get('bias', {})
+            compound = vader.get('compound', 0)
+            tone_color = '#3fcf8e' if compound > 0.05 else '#e05050' if compound < -0.05 else '#8a8fa0'
+            tone_label = 'Positive' if compound > 0.05 else 'Negative' if compound < -0.05 else 'Neutral'
+            bias_label = bias.get('label', '—')
+            bias_conf = bias.get('confidence', 0)
+
+            st.markdown(f"""
+            <div class='ng-card'>
+                <div style='display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px'>
+                    <div class='ng-card-title' style='flex:1'>{row.get('title','Untitled')}</div>
+                    <span class='ng-tag' style='color:{tone_color};border-color:{tone_color}20;background:{tone_color}10'>{tone_label}</span>
+                </div>
+                <div class='ng-card-meta'>📅 {row.get('date','Unknown')}</div>
+                <div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:12px'>
+                    <div>
+                        <div style='font-size:11px;color:#4a4f60;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px'>VADER</div>
+                        <div style='font-size:1.1rem;font-weight:600;color:{tone_color}'>{compound:+.2f}</div>
+                        <div style='font-size:12px;color:#4a4f60;margin-top:4px'>
+                            +{vader.get('positive',0):.2f} / ~{vader.get('neutral',0):.2f} / -{vader.get('negative',0):.2f}
+                        </div>
+                    </div>
+                    <div>
+                        <div style='font-size:11px;color:#4a4f60;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px'>TextBlob</div>
+                        <div style='font-size:1.1rem;font-weight:600;color:#c0c4d0'>
+                            {textblob.get('polarity',0):+.2f}
+                        </div>
+                        <div style='font-size:12px;color:#4a4f60;margin-top:4px'>
+                            Subjectivity: {textblob.get('subjectivity',0):.2f}
+                        </div>
+                    </div>
+                    <div>
+                        <div style='font-size:11px;color:#4a4f60;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px'>Bias</div>
+                        <div style='font-size:1.1rem;font-weight:600;color:#c09020'>{bias_label}</div>
+                        <div style='font-size:12px;color:#4a4f60;margin-top:4px'>Confidence: {bias_conf:.0%}</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.markdown("<div class='ng-info'>Sentiment and bias data not yet available. Run a refresh.</div>",
+                    unsafe_allow_html=True)
